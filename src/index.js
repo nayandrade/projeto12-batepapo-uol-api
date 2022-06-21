@@ -22,23 +22,29 @@ batePapoUolServer.post('/participants', (request, response) => {
         response.status(409).send('Usuário já está online');
         return;    
     }
-    participantes.push(request.body);
-    response.status(201).send('Usuário criado');
+    const person = {
+        name: request.body.name,
+        lastStatus: Date.now()
+    }
+    console.log(chalk.bold.red(request.body.name));
+    participantes.push(person);
+    response.status(201).send(person);
 })
 
 batePapoUolServer.get('/participants', (request, response) => {
     response.send(participantes);
 })
 
-batePapoUolServer.post('messages', (request, response) => {
+batePapoUolServer.post('/messages', (request, response) => {
     const { to, text, type } = request.body;
     const { user } = request.headers;
+    console.log(chalk.bold.red(request.headers, request.body));
     try {
         if (!to || to === '') 
             throw 'Destinatário é obrigatório';
         if (!text || text === '')    
             throw 'Mensagem é obrigatória';
-        if (!type || type !== 'message' || type !== 'private_message')
+         if (!type || (type !== 'message' && type !== 'private_message'))
             throw 'Tipo de mensagem é obrigatório';
         if (!user || user === '' || !participantes.find(participante => participante.name === user))
             throw 'Usuário não está online';
@@ -46,6 +52,10 @@ batePapoUolServer.post('messages', (request, response) => {
         response.status(422).send(error);
         return;
     }
+    const message = {
+        from: user, to: to, text: text, type: type, time: new Date().toLocaleTimeString()
+    }
+    mensages.push(message);
     response.status(201).send('Mensagem criada');
 })
 
