@@ -40,7 +40,6 @@ async function validateParticipant(request, response, participantsCollection, pa
         return response.status(409).send('Usuário já está online'); 
     } else {
         try {
-            console.log('foi?')
             const insertPerson = await participantsCollection.insertOne(person);
             await mongoClient.connect();
             const db = mongoClient.db('batePapoUol');
@@ -48,7 +47,7 @@ async function validateParticipant(request, response, participantsCollection, pa
             const insertStatusMessage = await messagesCollection.insertOne(message);
             
         } catch (error) {
-            response.status(500).send(error);
+            response.sendStatus(500)//.send(error);
         }
         response.status(201).send(person);
     }
@@ -72,30 +71,26 @@ batePapoUolServer.get('/messages', async (request, response) => {
         const db = mongoClient.db('batePapoUol');
         const messagesCollection = db.collection('messages');
         const messages = await messagesCollection.find().toArray();
-        response.status(200).send(messages);
+        const filteredMessages = messages.filter(message => message.to === 'Todos' || message.to === 'todos' || message.to === request.headers.user || message.from === request.headers.user);
+        response.status(200).send(filteredMessages);
     } catch (error) {
         response.status(500).send(error);
     }
 })
 
 batePapoUolServer.post('/messages', async (request, response) => {
-    const { to, text, type } = request.body;
-    const { user } = request.headers;
-    console.log(chalk.bold.red(request.headers, request.body));
     try {
         await mongoClient.connect();
         const db = mongoClient.db('batePapoUol');
         const participantsCollection = db.collection('participants');
         const participants = await participantsCollection.find().toArray();
-        validateMessage(request, response, participantsCollection, participants)
+        validateMessage(request, response, participants)
     } catch (error) {
         response.status(422).send(error);
-        return;
     }
-    response.status(201).send('Mensagem criada');
 })
 
-async function validateMessage(request, response, participantsCollection, participants) {
+async function validateMessage(request, response, participants) {
     const { to, text, type } = request.body;
     const { user } = request.headers;
     const message = {
@@ -117,13 +112,12 @@ async function validateMessage(request, response, participantsCollection, partic
             const insertMessage = await messagesCollection.insertOne(message);
             response.status(201).send("Mensagem enviada");
         } catch (error) {
-            response.status(500).send(error);            
+            response.status(500)//.send(error);            
         }
     }
 }
 
-batePapoUolServer.post('/status', async (request, response) => {
-    
+batePapoUolServer.post('/status', async (request, response) => { 
     try {
         await mongoClient.connect();
         const db = mongoClient.db('batePapoUol');
@@ -154,6 +148,25 @@ async function validateStatus(request, response, participantsCollection, partici
         }
     }
 }
+
+async function removeUsers() {
+    const rightNow = Date.now();
+    try {
+        await mongoClient.connect();
+        const db = mongoClient.db('batePapoUol');
+        const participantsCollection = db.collection('participants');
+        const participants = await participantsCollection.find().toArray();
+        participants.forEach(participant => {
+            if (rightNow - participant.lastStatus > 10000) {
+                participantsCollection.deleteOne({ name: participant.name });
+            }
+        })
+    } catch (error) {
+        response.status(500).send(error);
+    }
+}
+
+setInterval(removeUsers, 15000);
 
 batePapoUolServer.listen(5000, () => {
     console.log(chalk.bold.yellow("Rodando em http:localhost:5000"));
