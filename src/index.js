@@ -162,7 +162,7 @@ async function removeUsers() {
             }
         })
     } catch (error) {
-        response.status(500).send(error);
+        console.log(error);
     }
 }
 
