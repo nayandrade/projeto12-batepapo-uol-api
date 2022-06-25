@@ -34,7 +34,7 @@ const sendMessageSchema = joi.object({
 })
 
 batePapoUolServer.post('/participants', async (request, response) => {
-    const validation = userSchema.validate(request.body, { abortEarly: true });
+    const validation = userSchema.validate(request.body);
     if (validation.error) {
         response.sendStatus(422);
         return;
@@ -55,7 +55,7 @@ async function validateOnlineParticipant(request, response, participants) {
         lastStatus: Date.now()
     }
     const message = {
-        from: request.body.name, to: 'todos', text: 'entra na sala...', type: 'status', time: messageTime
+        from: request.body.name, to: 'Todos', text: 'entra na sala...', type: 'status', time: messageTime
     }
 
     if (participants.find(participante => participante.name === request.body.name)) {
@@ -91,7 +91,7 @@ batePapoUolServer.get('/messages', async (request, response) => {
     }
     try {
         const messages = await db.collection('messages').find().toArray();
-        const filteredMessages = messages.filter(message => message.to === 'Todos' || message.to === 'todos' || message.to === request.headers.user || message.from === request.headers.user);
+        const filteredMessages = messages.filter(message => message.to === 'Todos' || message.to === 'todos' || message.type === "message" || message.to === user || message.from === user);
         const start = filteredMessages.length - limit;
         const slicedMessages = filteredMessages.slice(start, filteredMessages.length);
         response.status(200).send(slicedMessages);
@@ -110,7 +110,7 @@ batePapoUolServer.post('/messages', async (request, response) => {
         const participants = await db.collection('participants').find().toArray();
         validateMessage(request, response, participants)
     } catch (error) {
-        response.status(422).send(error);
+        response.status(500).send(error);
     }
 })
 
