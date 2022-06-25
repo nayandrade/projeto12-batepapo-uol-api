@@ -1,9 +1,11 @@
-import express, {json} from 'express';
+import express, { json } from 'express';
 import cors from 'cors';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
 import { MongoClient } from 'mongodb';
 import joi from 'joi';
+import dayjs from 'dayjs';
+
 
 dotenv.config();
 
@@ -31,7 +33,6 @@ const sendMessageSchema = joi.object({
     type: joi.string().required(),
 })
 
-
 batePapoUolServer.post('/participants', async (request, response) => {
     const validation = userSchema.validate(request.body, { abortEarly: true });
     if (validation.error) {
@@ -48,12 +49,13 @@ batePapoUolServer.post('/participants', async (request, response) => {
 })
 
 async function validateOnlineParticipant(request, response, participants) {
+    const messageTime = dayjs().format('HH:mm:ss')
     const person = {
         name: request.body.name,
         lastStatus: Date.now()
     }
     const message = {
-        from: request.body.name, to: 'todos', text: 'entra na sala...', type: 'status', time: new Date().toLocaleTimeString()
+        from: request.body.name, to: 'todos', text: 'entra na sala...', type: 'status', time: messageTime
     }
 
     if (participants.find(participante => participante.name === request.body.name)) {
@@ -62,7 +64,7 @@ async function validateOnlineParticipant(request, response, participants) {
     try {
         const insertedPerson = await db.collection('participants').insertOne(person);
         const insertedMessage = await db.collection('messages').insertOne(message);
-        response.status(201).send(insertedPerson);
+        response.status(201).send([insertedPerson, insertedMessage]);
         
     } catch (error) {
         response.status(500)
@@ -80,6 +82,8 @@ batePapoUolServer.get('/participants', async (request, response) => {
 
 batePapoUolServer.get('/messages', async (request, response) => {
     const { user } = request.headers;
+    const { limit } = request.query;
+    
     const validation = headersSchema.validate( {user: user} );
     if (validation.error) {
         response.sendStatus(422);
@@ -88,7 +92,9 @@ batePapoUolServer.get('/messages', async (request, response) => {
     try {
         const messages = await db.collection('messages').find().toArray();
         const filteredMessages = messages.filter(message => message.to === 'Todos' || message.to === 'todos' || message.to === request.headers.user || message.from === request.headers.user);
-        response.status(200).send(filteredMessages);
+        const start = filteredMessages.length - limit;
+        const slicedMessages = filteredMessages.slice(start, filteredMessages.length);
+        response.status(200).send(slicedMessages);
     } catch (error) {
         response.status(500).send(error);
     }
@@ -111,8 +117,9 @@ batePapoUolServer.post('/messages', async (request, response) => {
 async function validateMessage(request, response, participants) {
     const { to, text, type } = request.body;
     const { user } = request.headers;
+    const messageTime = dayjs().format('HH:mm:ss')
     const message = {
-        from: user, to: to, text: text, type: type, time: new Date().toLocaleTimeString()
+        from: user, to: to, text: text, type: type, time: messageTime
     }
     if (!participants.find(participante => participante.name === user)) {
         return response.status(422).send('Usuário não está online');
@@ -134,26 +141,23 @@ batePapoUolServer.post('/status', async (request, response) => {
     } 
     try {
         const participants = await db.collection('participants').find().toArray();
-        validateStatus(request, response, participants)
+        validateStatus(user, response, participants)
         
     } catch (error) {
-        response.status(404).send(error);
+        response.status(500).send(error);
         return;
     }
 })
 
 async function validateStatus(user, response, participants) {
     const userLastStatus = Date.now()
-    
     if (!participants.find(participante => participante.name === user)) {
-        return response.status(422).send('Usuário não está online');
+        return response.status(404).send('Usuário não está online');
     }
     try {
-        await mongoClient.connect();
-        const db = mongoClient.db('batePapoUol');
         const participantsCollection = db.collection('participants');
         const updateStatus = await participantsCollection.updateOne({ name: user }, { $set: { lastStatus: userLastStatus } });
-        response.status(200).send('Status atualizado');
+        response.status(200).send(updateStatus);
     } catch (error) {
         response.status(500).send(error);            
     }
@@ -162,8 +166,6 @@ async function validateStatus(user, response, participants) {
 async function removeUsers() {
     const rightNow = Date.now();
     try {
-        await mongoClient.connect();
-        const db = mongoClient.db('batePapoUol');
         const participantsCollection = db.collection('participants');
         const participants = await participantsCollection.find().toArray();
         participants.forEach(participant => {
@@ -172,7 +174,7 @@ async function removeUsers() {
             }
         })
     } catch (error) {
-        console.log(error);
+        console.log(chalk.bold.redBright(error));
     }
 }
 
