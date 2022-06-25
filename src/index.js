@@ -21,7 +21,7 @@ const userSchema = joi.object({
     name: joi.string().required()
 })
 
-const loadMessagesSchema = joi.object({
+const headersSchema = joi.object({
     user: joi.string().required()
 })
 
@@ -79,6 +79,12 @@ batePapoUolServer.get('/participants', async (request, response) => {
 })
 
 batePapoUolServer.get('/messages', async (request, response) => {
+    const { user } = request.headers;
+    const validation = headersSchema.validate( {user: user} );
+    if (validation.error) {
+        response.sendStatus(422);
+        return;
+    }
     try {
         const messages = await db.collection('messages').find().toArray();
         const filteredMessages = messages.filter(message => message.to === 'Todos' || message.to === 'todos' || message.to === request.headers.user || message.from === request.headers.user);
@@ -119,7 +125,13 @@ async function validateMessage(request, response, participants) {
     }   
 }
 
-batePapoUolServer.post('/status', async (request, response) => { 
+batePapoUolServer.post('/status', async (request, response) => {
+    const { user } = request.headers;
+    const validation = headersSchema.validate( {user: user} );
+    if (validation.error) {
+        response.sendStatus(422);
+        return;
+    } 
     try {
         const participants = await db.collection('participants').find().toArray();
         validateStatus(request, response, participants)
@@ -130,10 +142,10 @@ batePapoUolServer.post('/status', async (request, response) => {
     }
 })
 
-async function validateStatus(request, response, participants) {
-    const { user } = request.headers;
+async function validateStatus(user, response, participants) {
     const userLastStatus = Date.now()
-    if (!user || user === '' || !participants.find(participante => participante.name === user)) {
+    
+    if (!participants.find(participante => participante.name === user)) {
         return response.status(422).send('Usuário não está online');
     }
     try {
