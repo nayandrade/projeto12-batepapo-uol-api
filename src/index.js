@@ -2,7 +2,7 @@ import express, { json } from 'express';
 import cors from 'cors';
 import chalk from 'chalk';
 import dotenv from 'dotenv';
-import { MongoClient } from 'mongodb';
+import { MongoClient, ObjectId } from 'mongodb';
 import joi from 'joi';
 import dayjs from 'dayjs';
 
@@ -179,6 +179,27 @@ async function removeUsers() {
 }
 
 setInterval(removeUsers, 15000);
+
+batePapoUolServer.delete('/messages/:id', async (request, response) => {
+    const { user } = request.headers
+    const id = request.params.id;
+
+    try {
+        const messagesCollection = db.collection('messages');
+        const message = await messagesCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!message) {
+            response.status(404).send('Mensagem não encontrada');
+        }
+        if (message.from !== user) {
+            response.status(401).send('Usuário não autorizado');
+        }
+        const deleteMessage = await messagesCollection.deleteOne({ _id: new ObjectId(id) });
+        response.status(200).send(deleteMessage);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+})
 
 batePapoUolServer.listen(5000, () => {
     console.log(chalk.bold.yellow("Rodando em http:localhost:5000"));
