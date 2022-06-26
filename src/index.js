@@ -30,7 +30,7 @@ const headersSchema = joi.object({
 const sendMessageSchema = joi.object({
     to: joi.string().required(),
     text: joi.string().required(),
-    type: joi.string().required(),
+    type: joi.valid('message','private_message').required(),
 })
 
 batePapoUolServer.post('/participants', async (request, response) => {
@@ -101,7 +101,7 @@ batePapoUolServer.get('/messages', async (request, response) => {
 })
 
 batePapoUolServer.post('/messages', async (request, response) => {
-    const validation = sendMessageSchema.validate(request.body, { abortEarly: true });
+    const validation = sendMessageSchema.validate(request.body, { abortEarly: false });
     if (validation.error) {
         response.sendStatus(422);
         return;
@@ -196,6 +196,33 @@ batePapoUolServer.delete('/messages/:id', async (request, response) => {
         }
         const deleteMessage = await messagesCollection.deleteOne({ _id: new ObjectId(id) });
         response.status(200).send(deleteMessage);
+    } catch (error) {
+        response.status(500).send(error);
+    }
+})
+
+batePapoUolServer.put('/messages/:id', async (request, response) => {
+    const { user } = request.headers;
+    const id = request.params.id;
+    const { text } = request.body;
+    const time = dayjs().format('HH:mm:ss');
+    const validation = sendMessageSchema.validate(request.body, { abortEarly: false });
+    if (validation.error) {
+        response.sendStatus(422);
+        return;
+    }
+    try {
+        const messagesCollection = db.collection('messages');
+        const message = await messagesCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!message) {
+            response.status(404).send('Mensagem não encontrada');
+        }
+        if (message.from !== user) {
+            response.status(401).send('Usuário não autorizado');
+        }
+        const updateMessage = await messagesCollection.updateOne({ _id: new ObjectId(id) }, { $set: { text: text, time: time } });
+        response.status(200).send(updateMessage);
     } catch (error) {
         response.status(500).send(error);
     }
