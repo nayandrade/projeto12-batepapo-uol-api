@@ -6,7 +6,6 @@ import { MongoClient, ObjectId } from 'mongodb';
 import joi from 'joi';
 import dayjs from 'dayjs';
 
-
 dotenv.config();
 
 const mongoClient = new MongoClient(process.env.MONGO_URI);
@@ -165,11 +164,17 @@ async function validateStatus(user, response, participants) {
 
 async function removeUsers() {
     const rightNow = Date.now();
+    const messageTime = dayjs().format('HH:mm:ss')
+
     try {
         const participantsCollection = db.collection('participants');
         const participants = await participantsCollection.find().toArray();
         participants.forEach(participant => {
+            const message = {
+                from: participant.name, to: 'Todos', text: 'sai da sala...', type: 'status', time: messageTime
+            }
             if (rightNow - participant.lastStatus > 10000) {
+                db.collection('messages').insertOne(message);
                 participantsCollection.deleteOne({ name: participant.name });
             }
         })
